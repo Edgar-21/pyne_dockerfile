@@ -5,7 +5,7 @@
 # --build-arg build_pymoab=YES \
 # --build-arg build_dagmc=YES \
 # --build-arg install_openmc=YES \
-# ../pyne 
+# ../../pyne 
 # build path needs to be top level of the pyne repository
 
 ARG pkg_mgr=apt
@@ -23,40 +23,40 @@ FROM common_base AS apt_deps
 ENV HOME /root
 RUN apt-get update \
     && apt-get install -y --fix-missing \
-            software-properties-common \
-            python3-pip \
-            wget \
-            build-essential \
-            git \
-            cmake \
-            gfortran \
-            libblas-dev \
-            liblapack-dev \
-            libeigen3-dev \
-            libhdf5-dev \
-            hdf5-tools \
+    software-properties-common \
+    python3-pip \
+    wget \
+    build-essential \
+    git \
+    cmake \
+    gfortran \
+    libblas-dev \
+    liblapack-dev \
+    libeigen3-dev \
+    libhdf5-dev \
+    hdf5-tools \
     && apt-get clean -y; \
     update-alternatives --install /usr/bin/python python /usr/bin/python3 10; \
     update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 10; \
     pip install --upgrade pip; \
     pip install numpy==1.23 \
-            scipy \
-            'cython<3' \
-            nose \
-            pytest \
-            tables \
-            matplotlib \
-            jinja2 \
-            setuptools \
-            future \
-            progress
+    scipy \
+    'cython<3' \
+    nose \
+    pytest \
+    tables \
+    matplotlib \
+    jinja2 \
+    setuptools \
+    future \
+    progress
 
 FROM common_base AS conda_deps
 RUN apt-get update \
     && apt-get install -y --fix-missing \
-        wget \
-        bzip2 \
-        ca-certificates \
+    wget \
+    bzip2 \
+    ca-certificates \
     && apt-get clean -y
 
 RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
@@ -75,17 +75,17 @@ RUN conda uninstall -y conda-libmamba-solver
 RUN conda config --set solver classic
 RUN conda update -y --all && \
     mamba install -y \
-                cmake \
-                git \
-                libblas \
-                liblapack \
-                hdf5 \
-                setuptools \
-                pytest \
-                pytables \
-                jinja2 \
-                "cython<3" \
-                && \
+    cmake \
+    git \
+    libblas \
+    liblapack \
+    hdf5 \
+    setuptools \
+    pytest \
+    pytables \
+    jinja2 \
+    "cython<3" \
+    && \
     mamba install -y --force-reinstall libsqlite && \
     conda clean -y --all
 RUN mkdir -p `python -m site --user-site`
@@ -99,16 +99,16 @@ RUN echo "export PATH=$HOME/.local/bin:\$PATH" >> ~/.bashrc
 ARG build_hdf5="NO"
 ENV HDF5_INSTALL_PATH=$HOME/opt/hdf5/$build_hdf5
 RUN if [ "$build_hdf5" != "NO" ]; then \
-        cd $HOME/opt \
-        && mkdir hdf5 \
-        && cd hdf5 \
-        && git clone --single-branch --branch $build_hdf5 https://github.com/HDFGroup/hdf5.git \
-        && cd hdf5 \
-        && ./configure --prefix=$HDF5_INSTALL_PATH --enable-shared \
-        && make -j 3 \
-        && make install \
-        && cd .. \
-        && rm -rf hdf5; \
+    cd $HOME/opt \
+    && mkdir hdf5 \
+    && cd hdf5 \
+    && git clone --single-branch --branch $build_hdf5 https://github.com/HDFGroup/hdf5.git \
+    && cd hdf5 \
+    && ./configure --prefix=$HDF5_INSTALL_PATH --enable-shared \
+    && make -j 3 \
+    && make install \
+    && cd .. \
+    && rm -rf hdf5; \
     fi
 # put HDF5 on the path
 ENV LD_LIBRARY_PATH $HDF5_INSTALL_PATH/lib:$LD_LIBRARY_PATH
@@ -123,7 +123,7 @@ ENV INSTALL_PATH=$HOME/opt/moab
 RUN export MOAB_HDF5_ARGS=""; \
     if [ "$build_hdf5" != "NO" ] ; \
     then \
-            export MOAB_HDF5_ARGS="-DHDF5_ROOT=$HDF5_INSTALL_PATH"; \
+    export MOAB_HDF5_ARGS="-DHDF5_ROOT=$HDF5_INSTALL_PATH"; \
     fi \
     && cd $HOME/opt \
     && mkdir moab \
@@ -135,12 +135,12 @@ RUN export MOAB_HDF5_ARGS=""; \
     && ls ..\
     # build/install shared lib
     && cmake .. \
-            -DENABLE_PYMOAB=ON \
-            -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
-            -DENABLE_HDF5=ON $MOAB_HDF5_ARGS \
-            -DBUILD_SHARED_LIBS=ON \
-            -DENABLE_BLASLAPACK=OFF \
-            -DENABLE_FORTRAN=OFF \
+    -DENABLE_PYMOAB=ON \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
+    -DENABLE_HDF5=ON $MOAB_HDF5_ARGS \
+    -DBUILD_SHARED_LIBS=ON \
+    -DENABLE_BLASLAPACK=OFF \
+    -DENABLE_FORTRAN=OFF \
     && make -j 3 \
     && cd pymoab \
     && pip install . \
@@ -163,13 +163,13 @@ RUN cd /root \
     && mkdir bld \
     && cd bld \
     && cmake .. -DMOAB_DIR=$HOME/opt/moab \
-                -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
-                -DBUILD_STATIC_LIBS=OFF \
-                -DBUILD_UWUW=OFF \
-                -DBUILD_TALLY=OFF \
-                -DBUILD_MAKE_WATERTIGHT=OFF \
-                -DBUILD_OVERLAP_CHECK=OFF \
-                -DBUILD_TESTS=OFF \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
+    -DBUILD_STATIC_LIBS=OFF \
+    -DBUILD_UWUW=OFF \
+    -DBUILD_TALLY=OFF \
+    -DBUILD_MAKE_WATERTIGHT=OFF \
+    -DBUILD_OVERLAP_CHECK=OFF \
+    -DBUILD_TESTS=OFF \
     && make -j 3\
     && make install \
     && cd ../.. \
@@ -180,7 +180,7 @@ FROM dagmc AS openmc
 ARG build_hdf5
 # build/install OpenMC Python API
 RUN if [ "$build_hdf5" != "NO" ]; then \
-            export HDF5_ROOT="$HDF5_INSTALL_PATH" ; \
+    export HDF5_ROOT="$HDF5_INSTALL_PATH" ; \
     fi ;\
     git clone https://github.com/openmc-dev/openmc.git $HOME/opt/openmc \
     && cd  $HOME/opt/openmc \
@@ -189,17 +189,17 @@ RUN if [ "$build_hdf5" != "NO" ]; then \
 
 RUN mkdir -p $HOME/root/openmc/build && \
     cd $HOME/root/openmc && \
-	git clone --recurse-submodules https://github.com/openmc-dev/openmc.git && \
-	cd build && \
-	cmake ../openmc \
-        -DCMAKE_INSTALL_PREFIX=$HOME/opt/openmc \
-        -DOPENMC_USE_DAGMC=ON \
-        -DDAGMC_ROOT=$HOME/opt/dagmc \
-        -DCMAKE_BUILD_TYPE=Release .. && \
-	make install -j18
+    git clone --recurse-submodules https://github.com/openmc-dev/openmc.git && \
+    cd build && \
+    cmake ../openmc \
+    -DCMAKE_INSTALL_PREFIX=$HOME/opt/openmc \
+    -DOPENMC_USE_DAGMC=ON \
+    -DDAGMC_ROOT=$HOME/opt/dagmc \
+    -DCMAKE_BUILD_TYPE=Release .. && \
+    make install -j18
 
 RUN	cd $HOME/root/openmc/openmc && \
-	python -m pip install .
+    python -m pip install .
 
 ENV PATH /root/opt/openmc/bin:$PATH
 
@@ -209,15 +209,15 @@ ARG build_hdf5
 
 RUN export PYNE_HDF5_ARGS="" ;\
     if [ "$build_hdf5" != "NO" ]; then \
-            export PYNE_HDF5_ARGS="--hdf5 $HDF5_INSTALL_PATH" ; \
+    export PYNE_HDF5_ARGS="--hdf5 $HDF5_INSTALL_PATH" ; \
     fi \
     && cd $HOME/opt \
     && git clone -b develop --single-branch https://github.com/pyne/pyne.git \
     && cd pyne \
     && python setup.py install --user \
-                                $PYNE_MOAB_ARGS $PYNE_DAGMC_ARGS \
-                                $PYNE_HDF5_ARGS \
-                                --clean -j 3;
+    $PYNE_MOAB_ARGS $PYNE_DAGMC_ARGS \
+    $PYNE_HDF5_ARGS \
+    --clean -j 3;
 ENV PATH $HOME/.local/bin:$PATH
 RUN cd $HOME \
     && nuc_data_make \
@@ -230,17 +230,20 @@ ARG build_hdf5
 
 RUN export PYNE_HDF5_ARGS="" ;\
     if [ "$build_hdf5" != "NO" ]; then \
-            export PYNE_HDF5_ARGS="--hdf5 $HDF5_INSTALL_PATH" ; \
+    export PYNE_HDF5_ARGS="--hdf5 $HDF5_INSTALL_PATH" ; \
     fi;
 COPY . $HOME/opt/pyne
 RUN cd $HOME/opt/pyne \
     && python setup.py install --user \
-                                $PYNE_MOAB_ARGS $PYNE_DAGMC_ARGS \
-                                $PYNE_HDF5_ARGS \
-                                --clean -j 3;
+    $PYNE_MOAB_ARGS $PYNE_DAGMC_ARGS \
+    $PYNE_HDF5_ARGS \
+    --clean -j 3;
 ENV PATH $HOME/.local/bin:$PATH
+ENV PYTHONPATH /root/.local/lib/python3.10/site-packages
 
 RUN chmod -R 777 /root
+RUN chmod -R 777 /usr
+RUN chmod -R 777 /sbin
 
 RUN pip install --no-cache-dir progress
 RUN pip install --no-cache-dir vtk
@@ -253,7 +256,7 @@ RUN tar -xf fendl.xz
 RUN rm -f fendl.xz
 RUN echo 'export OPENMC_CROSS_SECTIONS=/root/fendl-3.2-hdf5/cross_sections.xml' >> ~/.bashrc
 RUN git clone --single-branch -b add_toroidal_model https://github.com/Edgar-21/radial_build_tools.git
-ENV PYTHONPATH /root/radial_build_tools
+ENV PYTHONPATH /root/radial_build_tools:$PYTHONPATH
 
 RUN chmod -R 777 /root
 
