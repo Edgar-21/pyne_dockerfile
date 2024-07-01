@@ -1,6 +1,9 @@
 FROM ghcr.io/pyne/pyne_ubuntu_22.04_py3_hdf5/pyne-dev 
 
+RUN apt-get update && apt-get install ffmpeg libsm6 libxext6 nano expect -y
+
 ENV HOME=/root
+ENV HDF5_ROOT=/root/opt/hdf5/hdf5-1_12_0/
 
 RUN mkdir -p $HOME/root/openmc/build && \
     cd $HOME/root/openmc && \
@@ -34,6 +37,7 @@ RUN rm -f fendl.xz
 RUN echo 'export OPENMC_CROSS_SECTIONS=/root/fendl-3.2-hdf5/cross_sections.xml' >> ~/.bashrc
 RUN git clone --single-branch -b add_toroidal_model https://github.com/Edgar-21/radial_build_tools.git
 ENV PYTHONPATH=/root/radial_build_tools
+ENV PYTHONPATH=/root/.local/lib/python3.10/site-packages:$PYTHONPATH
 
 RUN chmod -R 777 /root
 
