@@ -1,13 +1,127 @@
-FROM ghcr.io/pyne/pyne_ubuntu_22.04_py3_hdf5/pyne-dev 
+ARG pyne_test_base=openmc
+ARG ubuntu_version=22.04
 
-RUN apt-get update && apt-get install ffmpeg libsm6 libxext6 nano expect -y
+FROM ubuntu:${ubuntu_version} AS base_python
 
-ENV HOME=/root
-ENV HDF5_ROOT=/root/opt/hdf5/hdf5-1_12_0/
+# Ubuntu Setup
+ENV TZ=America/Chicago
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-RUN mkdir -p $HOME/root/openmc/build && \
-    cd $HOME/root/openmc && \
-    git clone --recurse-submodules https://github.com/openmc-dev/openmc.git && \
+ENV HOME /root
+RUN apt-get update \
+    && apt-get install -y --fix-missing \
+            software-properties-common \
+            python3-pip \
+            wget \
+            build-essential \
+            git \
+            cmake \
+            gfortran \
+            libblas-dev \
+            liblapack-dev \
+            libeigen3-dev \
+    && apt-get clean -y; \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 10; \
+    update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 10; \
+    pip install --upgrade pip; \
+    pip install numpy==1.23 \
+            scipy \
+            cython \
+            nose \
+            pytest \
+            tables \
+            matplotlib \
+            jinja2 \
+            setuptools \
+            future \
+            progress
+
+# make starting directory
+RUN mkdir -p $HOME/opt
+RUN echo "export PATH=$HOME/.local/bin:\$PATH" >> ~/.bashrc
+
+# build HDF5
+ARG build_hdf5="hdf5-1_14_3"
+ENV HDF5_INSTALL_PATH=$HOME/opt/hdf5/$build_hdf5
+RUN cd $HOME/opt \
+    && mkdir hdf5 \
+    && cd hdf5 \
+    && git clone --single-branch --branch $build_hdf5 https://github.com/HDFGroup/hdf5.git \
+    && cd hdf5 \
+    && ./configure --prefix=$HDF5_INSTALL_PATH --enable-shared \
+    && make -j 3 \
+    && make install \
+    && cd .. \
+    && rm -rf hdf5;
+# put HDF5 on the path
+ENV LD_LIBRARY_PATH $HDF5_INSTALL_PATH/lib:$LD_LIBRARY_PATH
+ENV LIBRARY_PATH $HDF5_INSTALL_PATH/lib:$LIBRARY_PATH
+RUN echo "export PATH=\$PATH:$HDF5_INSTALL_PATH" >> ~/.bashrc
+ENV HDF5_ROOT=$HDF5_INSTALL_PATH
+
+FROM base_python AS moab
+ARG moab_version="5.5.1"
+ENV INSTALL_PATH=$HOME/opt/moab
+
+# build MOAB
+RUN export MOAB_HDF5_ARGS="-DHDF5_ROOT=$HDF5_INSTALL_PATH"; \
+    cd $HOME/opt \
+    && mkdir moab \
+    && cd moab \
+    && git clone --depth 1 --single-branch -b $moab_version https://bitbucket.org/fathomteam/moab \
+    && cd moab \
+    && mkdir build \
+    && cd build \
+    && ls ..\
+    # build/install shared lib
+    && cmake .. \
+            -DENABLE_PYMOAB=ON \
+            -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
+            -DENABLE_HDF5=ON $MOAB_HDF5_ARGS \
+            -DBUILD_SHARED_LIBS=ON \
+            -DENABLE_BLASLAPACK=OFF \
+            -DENABLE_FORTRAN=OFF \
+    && make -j 3 \
+    && cd pymoab \
+    && pip install . \
+    && cd .. \
+    && make install \
+    && cd .. \
+    && rm -rf moab ;
+
+# put MOAB on the path
+ENV LD_LIBRARY_PATH $HOME/opt/moab/lib:$LD_LIBRARY_PATH
+ENV LIBRARY_PATH $HOME/opt/moab/lib:$LIBRARY_PATH
+ENV PYNE_MOAB_ARGS "--moab $HOME/opt/moab"
+
+FROM moab AS dagmc
+# build/install DAGMC
+ENV INSTALL_PATH=$HOME/opt/dagmc
+RUN cd /root \
+    && git clone --depth 1 --branch stable https://github.com/svalinn/DAGMC.git \
+    && cd DAGMC \
+    && mkdir bld \
+    && cd bld \
+    && cmake .. -DMOAB_DIR=$HOME/opt/moab \
+                -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
+                -DBUILD_STATIC_LIBS=OFF \
+                -DBUILD_UWUW=OFF \
+                -DBUILD_TALLY=OFF \
+                -DBUILD_MAKE_WATERTIGHT=OFF \
+                -DBUILD_OVERLAP_CHECK=OFF \
+                -DBUILD_TESTS=OFF \
+    && make -j 3\
+    && make install \
+    && cd ../.. \
+    && rm -rf DAGMC
+ENV PYNE_DAGMC_ARGS "--dagmc $HOME/opt/dagmc"
+
+FROM dagmc AS openmc
+ARG openmc_version="v0.15.0"
+
+RUN mkdir -p $HOME/openmc/build && \
+    cd $HOME/openmc && \
+    git clone --recurse-submodules --branch $openmc_version https://github.com/openmc-dev/openmc.git && \
     cd build && \
     cmake ../openmc \
     -DCMAKE_INSTALL_PREFIX=$HOME/opt/openmc \
@@ -16,29 +130,30 @@ RUN mkdir -p $HOME/root/openmc/build && \
     -DCMAKE_BUILD_TYPE=Release .. && \
     make install -j18
 
-RUN	cd $HOME/root/openmc/openmc && \
+RUN	cd $HOME/openmc/openmc && \
     python -m pip install .
 
-ENV PATH=/root/opt/openmc/bin:$PATH
+ENV PATH="/root/opt/openmc/bin:$PATH"
 
-RUN chmod -R 777 /root
-RUN chmod -R 777 /usr
-RUN chmod -R 777 /sbin
+
+# Build/Install PyNE
+FROM openmc AS pyne
+
+COPY . $HOME/opt/pyne
+RUN export PYNE_HDF5_ARGS="--hdf5 $HDF5_INSTALL_PATH"; \
+    cd $HOME/opt/pyne \
+    && python setup.py install --user \
+                                $PYNE_MOAB_ARGS $PYNE_DAGMC_ARGS \
+                                $PYNE_HDF5_ARGS \
+                                --clean -j 3;
+ENV PATH="$HOME/.local/bin:$PATH"
+RUN cd $HOME \
+    && nuc_data_make \
+    && cd $HOME/opt/pyne/tests \
+    && ./ci-run-tests.sh python3
 
 RUN pip install --no-cache-dir progress
 RUN pip install --no-cache-dir vtk
 RUN pip install --no-cache-dir openmc-plasma-source
 RUN pip install --no-cache-dir PyYAML
 
-WORKDIR "/root"
-RUN wget -O fendl.xz https://anl.box.com/shared/static/3cb7jetw7tmxaw6nvn77x6c578jnm2ey.xz 
-RUN tar -xf fendl.xz
-RUN rm -f fendl.xz
-RUN echo 'export OPENMC_CROSS_SECTIONS=/root/fendl-3.2-hdf5/cross_sections.xml' >> ~/.bashrc
-RUN git clone --single-branch -b add_toroidal_model https://github.com/Edgar-21/radial_build_tools.git
-ENV PYTHONPATH=/root/radial_build_tools
-ENV PYTHONPATH=/root/.local/lib/python3.10/site-packages:$PYTHONPATH
-
-RUN chmod -R 777 /root
-
-WORKDIR "/"
